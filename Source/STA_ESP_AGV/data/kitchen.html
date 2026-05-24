@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Controller</title>
+<style>
+/* ╔══════════════════════════════════════════════════
+   ║  DESIGN TOKENS  — dark navy, vivid accents
+   ╚══════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#080C16; --bg1:#0C1120; --bg2:#111928; --bg3:#18202E;
+  --bd: rgba(255,255,255,0.07);
+  --bd2:rgba(255,255,255,0.14);
+  --bd3:rgba(255,255,255,0.22);
+  --t1:#FFFFFF; --t2:#C0CCDE; --t3:#6A7A94; --t4:#303D55;
+  --blue:#3D8EFF;  --blue-d:#1E56C8; --blue-g:rgba(61,142,255,.3);
+  --green:#22C55E; --green-d:#15803D; --green-g:rgba(34,197,94,.3);
+  --amber:#F59E0B; --amber-d:#B45309;
+  --red:#EF4444;   --red-d:#B91C1C;   --red-g:rgba(239,68,68,.35);
+  --purple:#A855F7; --cyan:#06B6D4;
+  --s1bg:#081430; --s1bd:#3D8EFF; --s1t:#93C5FD;
+  --s2bg:#1C0900; --s2bd:#F59E0B; --s2t:#FDE68A;
+}
+html,body{height:100%;background:var(--bg0);color:var(--t1);
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  font-size:13px;overflow:hidden}
+
+/* ── SCROLLBARS ────────────────────────────────── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+
+/* ╔══════════════════════════════════════════════════
+   ║  APP SHELL
+   ╚══════════════════════════════════════════════════ */
+.shell{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ── TOP BAR  h=54 ─────────────────────────────── */
+.topbar{height:54px;flex-shrink:0;
+  background:var(--bg1);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;padding:0 18px;gap:12px}
+.tb-logo{font-size:20px}
+.tb-title{font-size:16px;font-weight:800;white-space:nowrap}
+.tb-sep{width:1px;height:28px;background:var(--bd2);flex-shrink:0}
+.tb-chip{padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;
+  letter-spacing:.4px;white-space:nowrap;cursor:default}
+.chip-ok  {background:#052E16;color:var(--green);border:1px solid #22c55e33}
+.chip-info{background:#081430;color:var(--blue); border:1px solid #3d8eff33}
+.chip-warn{background:#2A1500;color:var(--amber);border:1px solid #f59e0b33}
+.chip-red {background:#1C0404;color:var(--red);  border:1px solid #ef444433}
+.tb-agv-bar{background:var(--bg0);border:1px solid var(--bd2);
+  border-radius:10px;padding:7px 20px;font-size:12px;color:var(--t2);
+  white-space:nowrap}
+.tb-stretch{flex:1}
+.btn-emg{padding:12px 28px;border:none;border-radius:10px;
+  background:var(--red);color:#fff;font-size:14px;font-weight:900;
+  cursor:pointer;letter-spacing:.3px;
+  box-shadow:0 4px 20px var(--red-g)}
+.btn-emg:hover{background:var(--red-d)}
+.conn-dot{width:9px;height:9px;border-radius:50%;
+  background:var(--red);flex-shrink:0;transition:background .4s}
+.conn-dot.on{background:var(--green)}
+
+/* ── BODY  (3 columns) ─────────────────────────── */
+.body{flex:1;display:flex;min-height:0;overflow:hidden}
+
+/* ═══ COL LEFT  w=230 ═══════════════════════════ */
+.col-l{width:230px;flex-shrink:0;background:var(--bg1);
+  border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow:hidden}
+.panel-hdr{height:30px;flex-shrink:0;padding:0 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg0);border-bottom:1px solid var(--bd)}
+.panel-hdr-lbl{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--t4)}
+.order-scroll{flex:1;overflow-y:auto;padding:10px 10px}
+.order-scroll{display:flex;flex-direction:column;gap:7px}
+
+/* Order card */
+.ocard{background:var(--bg2);border:1px solid var(--bd2);
+  border-radius:11px;padding:11px 12px;cursor:pointer;
+  transition:border-color .2s,background .2s}
+.ocard:hover{background:var(--bg3);border-color:var(--bd3)}
+.ocard.sel{background:var(--s1bg);border:1.5px solid var(--blue)}
+.oc-top{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.oc-name{font-size:14px;font-weight:700;flex:1}
+.oc-badge{padding:3px 9px;border-radius:5px;font-size:10px;
+  font-weight:800;letter-spacing:.5px}
+.b-urgent {background:#3B0A0A;color:#F87171}
+.b-cooking{background:#2A1500;color:var(--amber)}
+.b-new    {background:#081430;color:#60A5FA}
+.b-done   {background:#062410;color:#4ADE80}
+.b-paying {background:#1A0A2E;color:var(--purple)}
+.oc-items{font-size:11px;color:var(--t3);margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oc-foot{font-size:10px;color:var(--t4)}
+.oc-foot.sel{color:var(--s1t)}
+
+/* ═══ COL CENTER (flex) ═════════════════════════ */
+.col-c{flex:1;min-width:0;display:flex;flex-direction:column;
+  background:var(--bg0);overflow:hidden}
+
+/* Detail header */
+.det-hdr{height:58px;flex-shrink:0;background:var(--bg1);
+  border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;padding:0 20px;gap:14px}
+.det-title{font-size:16px;font-weight:800;flex:1}
+.det-sub  {font-size:11px;color:var(--t2);margin-top:2px}
+
+/* Item list */
+.item-scroll{flex:1;overflow-y:auto;padding:14px 18px;
+  display:flex;flex-direction:column;gap:8px}
+.trip-lbl{font-size:10px;font-weight:700;letter-spacing:1px;
+  padding:6px 0 2px}
+.trip-lbl.cur{color:var(--blue)}
+.trip-lbl.nxt{color:var(--t4)}
+
+/* Item row card */
+.irow{display:flex;align-items:center;gap:12px;
+  background:var(--bg2);border:1px solid var(--bd2);
+  border-radius:11px;padding:0 14px;height:66px;
+  transition:border-color .2s}
+.irow.active:hover{border-color:var(--bd3)}
+.irow.inactive{background:var(--bg1);border-color:var(--bd);opacity:.6}
+
+/* checkbox */
+.i-chk{width:22px;height:22px;border-radius:7px;flex-shrink:0;
+  border:2px solid var(--bd2);background:var(--bg0);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;transition:all .2s}
+.i-chk.done{background:var(--green);border-color:var(--green);color:#fff}
+.i-chk:hover:not(.done){border-color:var(--blue)}
+
+/* image thumb */
+.i-img{width:42px;height:42px;border-radius:9px;
+  object-fit:cover;background:var(--bg3);flex-shrink:0;
+  border:1px solid var(--bd);font-size:20px;
+  display:flex;align-items:center;justify-content:center}
+/* qty chip */
+.i-qty{min-width:30px;height:24px;border-radius:6px;
+  background:var(--s1bg);color:var(--s1t);
+  border:1px solid rgba(61,142,255,.35);
+  font-size:12px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;padding:0 6px}
+/* name */
+.i-body{flex:1;min-width:0}
+.i-name{font-size:13px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.i-name.done{color:var(--t3);text-decoration:line-through}
+.i-name.inactive{color:var(--t4)}
+.i-note{font-size:10px;color:var(--t3);margin-top:2px}
+/* slot combo */
+.i-slot-lbl{font-size:10px;font-weight:700;color:var(--t4);
+  letter-spacing:.5px;flex-shrink:0}
+.i-slot{width:70px;height:34px;border-radius:8px;
+  padding:0 8px;font-size:13px;font-weight:800;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:none;outline:none;
+  transition:all .2s}
+.slot-0{background:var(--bg0);color:var(--t4);border:2px solid var(--bd2)}
+.slot-1{background:var(--s1bg);color:var(--s1t);border:2px solid var(--s1bd)}
+.slot-2{background:var(--s2bg);color:var(--s2t);border:2px solid var(--s2bd)}
+
+/* ── DISPATCH PANEL (bottom of center) ────────── */
+.dispatch{flex-shrink:0;background:var(--bg1);
+  border-top:1px solid var(--bd);padding:14px 18px;
+  display:flex;flex-direction:column;gap:12px}
+.dp-label{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--t4)}
+
+/* Slot cards */
+.slots-row{display:flex;gap:12px}
+.slot-card{flex:1;border-radius:12px;padding:12px 14px;
+  border:2px solid;min-height:84px}
+.slot-card.sc1{background:var(--s1bg);border-color:var(--s1bd)}
+.slot-card.sc2{background:var(--s2bg);border-color:var(--s2bd)}
+.sc-tag{display:inline-block;padding:3px 9px;border-radius:4px;
+  font-size:10px;font-weight:900;letter-spacing:1px;margin-bottom:6px}
+.sc1 .sc-tag{background:var(--blue);color:#fff}
+.sc2 .sc-tag{background:var(--amber);color:#000}
+.sc-hdr{display:flex;align-items:flex-start;justify-content:space-between}
+.sc-pos{font-size:12px;font-weight:700;padding-top:2px}
+.sc1 .sc-pos{color:var(--s1t)}
+.sc2 .sc-pos{color:var(--s2t)}
+.sc-name{font-size:16px;font-weight:800;margin-bottom:2px}
+.sc1 .sc-name{color:var(--s1t)}
+.sc2 .sc-name{color:var(--s2t)}
+.sc-sub{font-size:11px}
+.sc1 .sc-sub{color:var(--s1t);opacity:.75}
+.sc2 .sc-sub{color:var(--s2t);opacity:.75}
+
+/* Action buttons */
+.act-row{display:flex;gap:9px;align-items:center}
+.abtn{border:none;border-radius:9px;padding:10px 22px;
+  font-size:13px;font-weight:800;cursor:pointer;
+  transition:filter .15s;white-space:nowrap}
+.abtn:hover{filter:brightness(1.12)}
+.abtn:active{filter:brightness(.9)}
+.abtn-go  {background:var(--blue);  color:#fff;
+  box-shadow:0 4px 18px var(--blue-g)}
+.abtn-done{background:var(--green); color:#fff;
+  box-shadow:0 4px 18px var(--green-g)}
+.abtn-warn{background:var(--amber); color:#000}
+.abtn-home{background:var(--red);   color:#fff}
+.abtn-ghost{background:var(--bg3);color:var(--t2);
+  border:1px solid var(--bd2)}
+
+/* ═══ COL RIGHT  w=260 ══════════════════════════ */
+.col-r{width:260px;flex-shrink:0;background:var(--bg1);
+  border-left:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow:hidden}
+
+/* AGV state block */
+.agv-block{padding:13px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.agv-state-row{display:flex;align-items:center;gap:9px;margin-bottom:5px}
+.agv-dot{font-size:22px;line-height:1;transition:color .4s}
+.agv-lbl{font-size:14px;font-weight:800}
+.agv-pos{font-size:12px;font-weight:600;color:var(--s1t);margin-bottom:3px}
+.agv-cargo{font-size:11px;color:var(--t3)}
+
+/* ── AGV MINI MAP (SVG) ───────────────────────── */
+.map-wrap{padding:10px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.map-lbl{font-size:10px;font-weight:700;letter-spacing:1.2px;
+  color:var(--t4);margin-bottom:8px}
+/* SVG styled via JS/attrs */
+
+/* ── TRACK (position list) ────────────────────── */
+.track-wrap{padding:6px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.track-row{display:flex;align-items:center;gap:8px;height:30px}
+.track-dot{font-size:13px;width:16px;text-align:center;
+  transition:color .3s,font-size .3s}
+.track-pos{font-size:12px;font-weight:700;color:var(--t2);width:22px}
+.track-tbl{font-size:11px;color:var(--t3)}
+
+/* ── TABLE GRID ──────────────────────────────── */
+.tbl-wrap{padding:10px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.tg{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.tg-btn{height:36px;border-radius:8px;border:2px solid;
+  font-size:12px;font-weight:800;cursor:pointer;
+  transition:filter .15s,transform .1s}
+.tg-btn:hover{filter:brightness(1.2)}
+.tg-btn:active{transform:scale(.93)}
+.tg-empty   {background:var(--bg2);color:var(--t4);border-color:var(--bd2)}
+.tg-occupied{background:#2A1500;  color:var(--amber);border-color:var(--amber)}
+.tg-selected{background:var(--s1bg);color:#93C5FD;border-color:var(--blue)}
+.tg-done    {background:#062410;  color:#4ADE80;   border-color:var(--green)}
+.tg-legend{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.tg-leg-item{display:flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--t3)}
+.tg-leg-dot{width:8px;height:8px;border-radius:2px}
+
+/* ── LOG PANEL ───────────────────────────────── */
+.log-panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.log-area{flex:1;overflow-y:auto;padding:7px 12px;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:10.5px;line-height:1.65;color:var(--t3)}
+.log-area p{margin:0}
+
+/* ── BOTTOM LOG BAR ──────────────────────────── */
+.log-bar{height:78px;flex-shrink:0;background:var(--bg0);
+  border-top:1px solid var(--bd);overflow-y:auto;
+  padding:5px 16px;
+  font-family:Consolas,"Courier New",monospace;font-size:11px;color:var(--t2)}
+.log-bar p{margin:0;padding:1px 0}
+
+/* ── EMPTY STATE ─────────────────────────────── */
+.empty-state{display:flex;align-items:center;justify-content:center;
+  height:100%;flex-direction:column;gap:8px;color:var(--t4)}
+.empty-state .icon{font-size:40px;opacity:.4}
+.empty-state .txt {font-size:13px}
+
+/* ── NOTIFICATION TOAST ──────────────────────── */
+.toast{position:fixed;top:14px;left:50%;
+  transform:translateX(-50%) translateY(-80px);
+  background:var(--bg3);border:1px solid var(--bd2);
+  border-radius:11px;padding:10px 20px;font-size:13px;
+  font-weight:600;z-index:999;pointer-events:none;
+  transition:transform .35s cubic-bezier(.34,1.5,.64,1);
+  box-shadow:0 8px 30px rgba(0,0,0,.6);white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── MODAL CONFIRM ───────────────────────────── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:500;display:none;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--bd2);
+  border-radius:16px;padding:24px 24px 20px;width:360px;max-width:90vw}
+.modal h3{font-size:16px;font-weight:800;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end}
+.mbtn{padding:9px 20px;border-radius:9px;border:none;
+  font-size:13px;font-weight:700;cursor:pointer}
+.mbtn-cancel{background:var(--bg3);color:var(--t2);border:1px solid var(--bd2)}
+.mbtn-ok    {background:var(--red);color:#fff}
+.mbtn-ok.green{background:var(--green)}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- MODAL CONFIRM -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Xác nhận</h3>
+    <p id="modal-body">—</p>
+    <div class="modal-btns">
+      <button class="mbtn mbtn-cancel" onclick="modalClose()">Huỷ</button>
+      <button class="mbtn mbtn-ok" id="modal-ok" onclick="modalConfirm()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- ═══ TOP BAR ═══════════════════════════════ -->
+  <div class="topbar">
+    <div class="tb-logo">🍜</div>
+    <div class="tb-title">Kitchen Controller</div>
+    <div class="tb-sep"></div>
+    <span class="tb-chip chip-ok"  id="chip-ws">● Offline</span>
+    <span class="tb-chip chip-info" id="chip-agv">AGV: Home</span>
+    <span class="tb-chip chip-warn" id="chip-orders">0 đơn</span>
+    <div class="tb-sep"></div>
+    <div class="tb-agv-bar" id="agv-bar">
+      AGV  ·  Đang chờ  ·  Home  ·  Slot1: —  ·  Slot2: —
+    </div>
+    <div class="tb-stretch"></div>
+    <div class="conn-dot" id="conn-dot"></div>
+    <button class="btn-emg" onclick="doEmergency()">⚠  EMERGENCY STOP</button>
+  </div>
+
+  <!-- ═══ BODY ════════════════════════════════ -->
+  <div class="body">
+
+    <!-- ──────── COL LEFT: ORDER QUEUE ──────── -->
+    <div class="col-l">
+      <div class="panel-hdr">
+        <span class="panel-hdr-lbl">HÀNG ĐỢI ĐƠN</span>
+        <span class="tb-chip chip-warn" id="chip-count" style="font-size:10px;padding:2px 8px">0</span>
+      </div>
+      <div class="order-scroll" id="order-scroll"></div>
+    </div>
+
+    <!-- ──────── COL CENTER ──────────────────── -->
+    <div class="col-c">
+      <!-- Detail header -->
+      <div class="det-hdr">
+        <div>
+          <div class="det-title" id="det-title">Chọn một đơn hàng</div>
+          <div class="det-sub"   id="det-sub">—</div>
+        </div>
+      </div>
+
+      <!-- Item list -->
+      <div class="item-scroll" id="item-scroll">
+        <div class="empty-state">
+          <div class="icon">🍽</div>
+          <div class="txt">Chưa chọn đơn hàng nào</div>
+        </div>
+      </div>
+
+      <!-- Dispatch panel -->
+      <div class="dispatch" id="dispatch" style="display:none">
+        <div class="dp-label">PHÂN CÔNG LƯỢT GIAO — AGV 2 SLOT</div>
+        <div class="slots-row">
+          <div class="slot-card sc1" id="sc1">
+            <div class="sc-hdr">
+              <span class="sc-tag">SLOT 1</span>
+              <span class="sc-pos" id="sc1-pos"></span>
+            </div>
+            <div class="sc-name" id="sc1-name">— trống —</div>
+            <div class="sc-sub"  id="sc1-sub"></div>
+          </div>
+          <div class="slot-card sc2" id="sc2">
+            <div class="sc-hdr">
+              <span class="sc-tag">SLOT 2</span>
+              <span class="sc-pos" id="sc2-pos"></span>
+            </div>
+            <div class="sc-name" id="sc2-name">— trống —</div>
+            <div class="sc-sub"  id="sc2-sub"></div>
+          </div>
+        </div>
+        <div class="act-row">
+          <button class="abtn abtn-go"   onclick="sendAGV()">▶  Gửi AGV</button>
+          <button class="abtn abtn-done" onclick="finishTrip()">✓  Xong lượt</button>
+          <button class="abtn abtn-warn" onclick="reportDelay()">⏱  Báo trễ</button>
+          <div style="flex:1"></div>
+          <button class="abtn abtn-home" onclick="recallHome()">⌂  Home khẩn</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────── COL RIGHT ──────────────────── -->
+    <div class="col-r">
+      <!-- AGV STATE -->
+      <div class="panel-hdr"><span class="panel-hdr-lbl">AGV ROBOT</span></div>
+      <div class="agv-block">
+        <div class="agv-state-row">
+          <div class="agv-dot" id="agv-dot" style="color:var(--green)">●</div>
+          <div class="agv-lbl" id="agv-lbl">Đang chờ</div>
+        </div>
+        <div class="agv-pos"   id="agv-pos">Vị trí: Home</div>
+        <div class="agv-cargo" id="agv-cargo">Slot 1: —  ·  Slot 2: —</div>
+      </div>
+
+      <!-- MINI MAP -->
+      <div class="map-wrap">
+        <div class="map-lbl">BẢN ĐỒ NHÀ HÀNG</div>
+        <svg id="map-svg" viewBox="0 0 220 160" width="100%"
+             style="border-radius:10px;background:var(--bg0);
+                    border:1px solid var(--bd)">
+
+          <!-- Corridor -->
+          <rect x="96" y="10" width="28" height="140" rx="4"
+                fill="rgba(61,142,255,0.05)" stroke="rgba(61,142,255,0.2)"
+                stroke-width="1" stroke-dasharray="4 3"/>
+          <text x="110" y="156" text-anchor="middle"
+                font-size="8" fill="rgba(255,255,255,0.25)">Lối robot</text>
+
+          <!-- Left tables: 1,3,5,7,9 -->
+          <!-- Right tables: 2,4,6,8,10 -->
+          <!-- Positions: y = 22,50,78,106,134 for P1..P5 -->
+
+          <!-- Table boxes: left side -->
+          <g id="tbl-boxes">
+            <!-- Generated by JS -->
+          </g>
+
+          <!-- Robot track line -->
+          <line x1="110" y1="18" x2="110" y2="148"
+                stroke="rgba(61,142,255,0.3)" stroke-width="2"
+                stroke-dasharray="3 3"/>
+
+          <!-- Position stops P1–P5 -->
+          <g id="pos-stops"></g>
+
+          <!-- Robot marker -->
+          <g id="robot-marker">
+            <circle r="7" fill="var(--blue)"
+                    stroke="#fff" stroke-width="2"/>
+            <text text-anchor="middle" dominant-baseline="central"
+                  font-size="7" font-weight="900" fill="#fff">R</text>
+          </g>
+
+          <!-- Kitchen label at bottom -->
+          <rect x="82" y="148" width="56" height="14" rx="4"
+                fill="rgba(239,68,68,0.2)" stroke="rgba(239,68,68,0.5)"
+                stroke-width="1"/>
+          <text x="110" y="155" text-anchor="middle"
+                font-size="8" font-weight="700" fill="var(--red)">🍳 BẾP</text>
+        </svg>
+      </div>
+
+      <!-- TRACK (text list) -->
+      <div class="panel-hdr"><span class="panel-hdr-lbl">LỘ TRÌNH · 5 ĐIỂM</span></div>
+      <div class="track-wrap" id="track-wrap"></div>
+
+      <!-- TABLE GRID -->
+      <div class="panel-hdr"><span class="panel-hdr-lbl">TRẠNG THÁI 10 BÀN</span></div>
+      <div class="tbl-wrap">
+        <div class="tg" id="tg"></div>
+        <div class="tg-legend">
+          <div class="tg-leg-item">
+            <div class="tg-leg-dot" style="background:var(--green)"></div>Xong</div>
+          <div class="tg-leg-item">
+            <div class="tg-leg-dot" style="background:var(--amber)"></div>Chờ</div>
+          <div class="tg-leg-item">
+            <div class="tg-leg-dot" style="background:var(--blue)"></div>Xử lý</div>
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="panel-hdr"><span class="panel-hdr-lbl">LOG</span></div>
+      <div class="log-panel">
+        <div class="log-area" id="log-area"></div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- BOTTOM LOG BAR -->
+  <div class="log-bar" id="log-bar"></div>
+
+</div><!-- /shell -->
+
+<script>
+'use strict';
+/* ╔══════════════════════════════════════════════════════
+   ║  CONFIG
+   ╚══════════════════════════════════════════════════════ */
+const ESP_IP  = location.hostname || '192.168.1.50';
+const WS_URL  = `ws://${ESP_IP}/ws`;
+const API     = `http://${ESP_IP}`;
+
+/* ╔══════════════════════════════════════════════════════
+   ║  CONSTANTS
+   ╚══════════════════════════════════════════════════════ */
+const POSITIONS = {P1:[1,2],P2:[3,4],P3:[5,6],P4:[7,8],P5:[9,10]};
+const POS_KEYS  = ['P1','P2','P3','P4','P5'];
+const KITCHEN_Y = 148;  // SVG Y for kitchen
+const POS_Y     = {P1:22, P2:50, P3:78, P4:106, P5:134, Home:148};
+const TBL_X_L   = 52;   // left tables SVG X center
+const TBL_X_R   = 168;  // right tables SVG X center
+const TBL_Y     = {1:22,3:50,5:78,7:106,9:134, 2:22,4:50,6:78,8:106,10:134};
+
+const EMO = {Mon_chinh:'🍜',Trang_miem:'🍮',Nuoc:'🧃'};
+
+const STATUS_ORDER = ['dang_xu_ly','dang_nau','xong','da_giao','thanh_toan'];
+
+/* ╔══════════════════════════════════════════════════════
+   ║  STATE
+   ╚══════════════════════════════════════════════════════ */
+let ws = null;
+const ORDERS = {};       // table_id → full order obj from ESP32
+let SEL = null;          // currently selected table_id
+let TRIPS = {};          // SEL table multi-trip state: {trip, trips[]}
+let AGV_BASKET = {1:null, 2:null}; // slot basket: each slot carries one item for one table
+let LAST_AGV_DISPATCH = []; // exact slots sent in the last AGV trip
+const TBL_ST = {};       // table_id → 'empty'|'occupied'|'selected'|'done'
+const AGV = {pos:'Home', status:'idle', s1:'', s2:''};
+let _modalCb = null;
+
+// init table statuses
+for(let i=1;i<=10;i++) TBL_ST[i]='empty';
+
+/* ╔══════════════════════════════════════════════════════
+   ║  WEBSOCKET
+   ╚══════════════════════════════════════════════════════ */
+function connectWS(){
+  ws = new WebSocket(WS_URL);
+  ws.onopen = ()=>{
+    setChip('chip-ws','chip-ok','● Online');
+    document.getElementById('conn-dot').classList.add('on');
+    ws.send(JSON.stringify({cmd:'get_all'}));
+    addLog('✓ Kết nối ESP32 WebSocket','ok');
+  };
+  ws.onclose = ()=>{
+    setChip('chip-ws','chip-red','● Offline');
+    document.getElementById('conn-dot').classList.remove('on');
+    addLog('✗ Mất kết nối — thử lại...','err');
+    setTimeout(connectWS, 3000);
+  };
+  ws.onerror = ()=>ws.close();
+  ws.onmessage = e=>{
+    try{ handleMsg(JSON.parse(e.data)); }catch(_){}
+  };
+}
+
+function wsTx(obj){
+  if(ws && ws.readyState===1) ws.send(JSON.stringify(obj));
+  addLog(`TX → ${JSON.stringify(obj)}`,'tx');
+}
+
+function handleMsg(d){
+  // Full snapshot
+  if(d.don_hang){
+    d.don_hang.forEach(o => {
+      ORDERS[o.table_id] = o;
+      buildTrips(o.table_id);
+      TBL_ST[o.table_id] = stToTblClass(o.trang_thai);
+    });
+    syncAll(); return;
+  }
+  // New order
+  if(d.event==='don_moi'){
+    const inner = typeof d.data==='string' ? JSON.parse(d.data) : d.data;
+    ORDERS[inner.table_id] = inner;
+    buildTrips(inner.table_id);
+    TBL_ST[inner.table_id] = 'occupied';
+    syncAll();
+    beep(660,250); setTimeout(()=>beep(880,200),300);
+    toast(`🆕 Đơn mới — Bàn ${inner.table_id}`,4000);
+    addLog(`Đơn mới Bàn ${inner.table_id} — ${inner.so_mon} món`,'new');
+    return;
+  }
+  // Status update
+  if(d.event==='don_update'){
+    if(ORDERS[d.table_id]){
+      ORDERS[d.table_id].trang_thai = d.trang_thai;
+      TBL_ST[d.table_id] = stToTblClass(d.trang_thai);
+    }
+    syncAll(); return;
+  }
+  // AGV feedback
+  if(d._relay_from==='agv' || d.event==='agv_fb'){
+    if(d.pos) AGV.pos = d.pos;
+    if(d.status) AGV.status = d.status;
+    if(d.status==='done_task') completeLastDispatch();
+    syncAGV(); addLog(`AGV ← pos=${d.pos||'?'} st=${d.status||'?'}`,'rx');
+    return;
+  }
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  TRIP LOGIC
+   ║  Multi-trip: group items into batches of 2 (AGV capacity)
+   ╚══════════════════════════════════════════════════════ */
+function buildTrips(tid){
+  const o = ORDERS[tid];
+  if(!o || !o.mon_an) return;
+  // Each "trip" = slice of up to 2 items
+  const items = o.mon_an;
+  const trips = [];
+  for(let i=0;i<items.length;i+=2){
+    trips.push(items.slice(i,i+2).map(it=>({
+      ...it,
+      done: it.status >= 3,   // MON_DA_GIAO = 3
+      slot: it.slot || (trips.length%2===0 ? 1 : 2)
+    })));
+  }
+  // preserve done state from previous
+  if(TRIPS[tid]){
+    const prev = TRIPS[tid];
+    prev.trips.forEach((t,ti)=> t.forEach((it,ii)=>{
+      if(trips[ti]?.[ii]) trips[ti][ii].done = it.done;
+    }));
+  }
+  TRIPS[tid] = { trip: TRIPS[tid]?.trip||0, trips };
+}
+
+function curTrip(tid){
+  if(!TRIPS[tid]) return [];
+  const {trip,trips} = TRIPS[tid];
+  return trips[trip] || [];
+}
+
+function itemKey(tid, tripIdx, itemIdx){
+  return `${tid}:${tripIdx}:${itemIdx}`;
+}
+
+function basketSlotOf(tid, tripIdx, itemIdx){
+  const key = itemKey(tid, tripIdx, itemIdx);
+  if(AGV_BASKET[1]?.key===key) return 1;
+  if(AGV_BASKET[2]?.key===key) return 2;
+  return 0;
+}
+
+function clearBasketItem(key){
+  if(AGV_BASKET[1]?.key===key) AGV_BASKET[1]=null;
+  if(AGV_BASKET[2]?.key===key) AGV_BASKET[2]=null;
+}
+
+function tablePos(t){
+  for(const [p,[l,r]] of Object.entries(POSITIONS))
+    if(t===l||t===r) return p;
+  return '?';
+}
+function tableDir(t){
+  for(const [,[l,r]] of Object.entries(POSITIONS))
+    if(t===l) return '← Trái';
+    else if(t===r) return 'Phải →';
+  return '';
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  STATUS HELPERS
+   ╚══════════════════════════════════════════════════════ */
+function stToTblClass(st){
+  if(!st||st==='trong') return 'empty';
+  if(st==='thanh_toan') return 'done';
+  if(st==='chua_thanh_toan') return 'occupied';
+  return 'occupied';
+}
+function stToBadge(st){
+  const m={dang_xu_ly:['b-urgent','CHỜ'],dang_nau:['b-cooking','NẤU'],
+           xong:['b-done','XONG'],da_giao:['b-done','GIAO'],
+           chua_thanh_toan:['b-paying','CHƯA TT'],
+           thanh_toan:['b-done','ĐÃ TT'],trong:['b-new','TRỐNG']};
+  return m[st]||['b-new',st];
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  SYNC ALL UI
+   ╚══════════════════════════════════════════════════════ */
+function syncAll(){
+  renderOrderQueue();
+  renderDetail();
+  renderTableGrid();
+  syncAGV();
+  setChip('chip-orders','chip-warn',
+    `${Object.keys(ORDERS).filter(t=>ORDERS[t]?.trang_thai!=='trong'&&
+      ORDERS[t]?.trang_thai!=='thanh_toan').length} đơn`);
+  setChip('chip-count','chip-warn',
+    Object.keys(ORDERS).filter(t=>ORDERS[t]?.trang_thai!=='trong'&&
+      ORDERS[t]?.trang_thai!=='thanh_toan').length);
+}
+
+/* ── ORDER QUEUE (left column) ─────────────────── */
+function renderOrderQueue(){
+  const wrap = document.getElementById('order-scroll');
+  const active = Object.values(ORDERS)
+    .filter(o=>o && o.trang_thai!=='trong' && o.trang_thai!=='thanh_toan')
+    .sort((a,b)=>{ // urgent first
+      const pri = {dang_xu_ly:0,dang_nau:1,xong:2,da_giao:3,chua_thanh_toan:4};
+      return (pri[a.trang_thai]??9)-(pri[b.trang_thai]??9);
+    });
+
+  if(!active.length){
+    wrap.innerHTML=`<div class="empty-state" style="height:120px">
+      <div class="icon">✓</div><div class="txt">Không có đơn</div></div>`;
+    return;
+  }
+
+  wrap.innerHTML = active.map(o=>{
+    const tid = o.table_id;
+    const sel = (tid===SEL);
+    const [bcls,btxt] = stToBadge(o.trang_thai);
+    const items = (o.mon_an||[]).map(m=>m.ten||`Món #${m.type}`).join(' · ');
+    const ti = (TRIPS[tid]?.trip||0)+1;
+    const tl = TRIPS[tid]?.trips?.length||1;
+    return `<div class="ocard${sel?' sel':''}" onclick="selectOrder(${tid})">
+      <div class="oc-top">
+        <div class="oc-name">Bàn ${tid}</div>
+        <div class="oc-badge ${bcls}">${btxt}</div>
+      </div>
+      <div class="oc-items">${items||'—'}</div>
+      <div class="oc-foot${sel?' sel':''}">Lượt ${ti}/${tl}  ·  ${o.timestamp?elapsed(o.timestamp):''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── DETAIL (center column) ──────────────────── */
+function renderDetail(){
+  const scroll  = document.getElementById('item-scroll');
+  const dp      = document.getElementById('dispatch');
+
+  if(!SEL || !ORDERS[SEL]){
+    scroll.innerHTML=`<div class="empty-state">
+      <div class="icon">🍽</div><div class="txt">Chọn đơn hàng từ danh sách</div></div>`;
+    dp.style.display='none';
+    document.getElementById('det-title').textContent='Chọn một đơn hàng';
+    document.getElementById('det-sub').textContent='—';
+    return;
+  }
+
+  const o  = ORDERS[SEL];
+  const tp = TRIPS[SEL];
+  document.getElementById('det-title').textContent=
+    `Bàn ${SEL}  ·  Điều phối giao hàng`;
+  document.getElementById('det-sub').textContent=
+    `${o.trang_thai}  ·  Lượt ${(tp?.trip||0)+1}/${tp?.trips?.length||1}  ·  Tổng: ${fmt(o.tong_gia_tri||0)} ₫`;
+
+  // Render trips
+  let html='';
+  (tp?.trips||[]).forEach((trip,ti)=>{
+    const isCur = ti===(tp?.trip||0);
+    html+=`<div class="trip-lbl ${isCur?'cur':'nxt'}">
+      ${isCur?'Lượt giao hiện tại — tích ✓ khi đã giao':`Lượt ${ti+1} — kế tiếp`}
+    </div>`;
+    trip.forEach((it,ii)=>{
+      const done = it.done;
+      const active = isCur;
+      const emo = EMO[it.loai]||'🍽';
+      const slot = basketSlotOf(SEL,ti,ii);
+      html+=`<div class="irow ${active?'active':'inactive'}">
+        <div class="i-chk${done?' done':''}"
+             onclick="${active?`toggleItem(${SEL},${ti},${ii},${done})`:''}">
+          ${done?'✓':''}
+        </div>
+        <div class="i-img">${emo}</div>
+        <div class="i-qty">×${it.soluong||1}</div>
+        <div class="i-body">
+          <div class="i-name${done?' done':''}${!active?' inactive':''}">${it.ten||'Món #'+it.type}</div>
+          ${it.note?`<div class="i-note">${it.note}</div>`:''}
+        </div>
+        <div class="i-slot-lbl">SLOT</div>
+        <select class="i-slot slot-${slot}"
+                ${active&&!done?'':'disabled'}
+                onchange="changeSlot(${SEL},${ti},${ii},this.value)">
+          <option value="0" ${slot===0?'selected':''}>—</option>
+          <option value="1" ${slot===1?'selected':''}>1</option>
+          <option value="2" ${slot===2?'selected':''}>2</option>
+        </select>
+      </div>`;
+    });
+  });
+  scroll.innerHTML=html;
+
+  // Dispatch panel
+  dp.style.display='flex';
+  const s1item = AGV_BASKET[1];
+  const s2item = AGV_BASKET[2];
+
+  // Slot 1
+  document.getElementById('sc1-name').textContent = s1item?s1item.name:'— trống —';
+  document.getElementById('sc1-sub').textContent  = s1item?`Bàn ${s1item.table} · ${s1item.pos} ${s1item.dir}`:'';
+  document.getElementById('sc1-pos').textContent  = s1item?s1item.pos:'';
+  // Slot 2
+  document.getElementById('sc2-name').textContent = s2item?s2item.name:'— trống —';
+  document.getElementById('sc2-sub').textContent  = s2item?`Bàn ${s2item.table} · ${s2item.pos} ${s2item.dir}`:'';
+  document.getElementById('sc2-pos').textContent  = s2item?s2item.pos:'';
+}
+
+/* ── TABLE GRID (right column) ────────────────── */
+function renderTableGrid(){
+  const tg = document.getElementById('tg');
+  tg.innerHTML='';
+  for(let t=1;t<=10;t++){
+    const st = SEL===t ? 'selected' : (TBL_ST[t]||'empty');
+    const btn = document.createElement('button');
+    btn.className=`tg-btn tg-${st}`;
+    btn.textContent=t;
+    btn.title=`Bàn ${t} — ${st}`;
+    btn.onclick=()=>selectOrder(t);
+    tg.appendChild(btn);
+  }
+}
+
+/* ── MINI MAP (SVG) ─────────────────────────────── */
+function initMap(){
+  const svg = document.getElementById('map-svg');
+
+  // Draw table boxes
+  const boxes = document.getElementById('tbl-boxes');
+  for(let t=1;t<=10;t++){
+    const isLeft = (t%2===1);
+    const cx = isLeft ? TBL_X_L : TBL_X_R;
+    const cy = TBL_Y[t];
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id=`map-tbl-${t}`;
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', cx-20); rect.setAttribute('y', cy-8);
+    rect.setAttribute('width','40'); rect.setAttribute('height','16');
+    rect.setAttribute('rx','4');
+    rect.setAttribute('fill','rgba(255,255,255,0.06)');
+    rect.setAttribute('stroke','rgba(255,255,255,0.12)');
+    rect.setAttribute('stroke-width','1');
+    g.appendChild(rect);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',cx); txt.setAttribute('y',cy+1);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('dominant-baseline','central');
+    txt.setAttribute('font-size','8');
+    txt.setAttribute('font-weight','700');
+    txt.setAttribute('fill','rgba(255,255,255,0.5)');
+    txt.textContent=`B${t}`;
+    g.appendChild(txt);
+    boxes.appendChild(g);
+  }
+
+  // Draw position stops
+  const stops = document.getElementById('pos-stops');
+  POS_KEYS.forEach(p=>{
+    const y=POS_Y[p];
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id=`pos-${p}`;
+
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx','110'); c.setAttribute('cy',y);
+    c.setAttribute('r','4');
+    c.setAttribute('fill','rgba(255,255,255,0.1)');
+    c.setAttribute('stroke','rgba(61,142,255,0.3)');
+    c.setAttribute('stroke-width','1.5');
+    g.appendChild(c);
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x','118'); t.setAttribute('y',y+1);
+    t.setAttribute('dominant-baseline','central');
+    t.setAttribute('font-size','7'); t.setAttribute('fill','rgba(255,255,255,0.35)');
+    t.textContent=p;
+    g.appendChild(t);
+    stops.appendChild(g);
+  });
+
+  // Init robot at home
+  moveRobotTo('Home');
+}
+
+function moveRobotTo(pos){
+  const y = POS_Y[pos] ?? KITCHEN_Y;
+  const rm = document.getElementById('robot-marker');
+  rm.setAttribute('transform',`translate(110,${y})`);
+  // highlight position stop
+  POS_KEYS.forEach(p=>{
+    const el = document.getElementById(`pos-${p}`);
+    if(!el) return;
+    const c = el.querySelector('circle');
+    if(p===pos){
+      c.setAttribute('fill','var(--blue)');
+      c.setAttribute('stroke','#fff');
+      c.setAttribute('r','5');
+    } else {
+      c.setAttribute('fill','rgba(255,255,255,0.1)');
+      c.setAttribute('stroke','rgba(61,142,255,0.3)');
+      c.setAttribute('r','4');
+    }
+  });
+  // highlight table boxes for this position
+  for(let t=1;t<=10;t++){
+    const el = document.getElementById(`map-tbl-${t}`);
+    if(!el) continue;
+    const rect = el.querySelector('rect');
+    const [l,r] = POSITIONS[pos]||[];
+    if(t===l||t===r){
+      rect.setAttribute('fill','rgba(61,142,255,0.2)');
+      rect.setAttribute('stroke','rgba(61,142,255,0.6)');
+    } else {
+      const st = TBL_ST[t]||'empty';
+      const fill = st==='occupied'?'rgba(245,158,11,0.15)':
+                   st==='done'?'rgba(34,197,94,0.1)':
+                   st==='selected'?'rgba(61,142,255,0.15)':
+                   'rgba(255,255,255,0.04)';
+      rect.setAttribute('fill',fill);
+      rect.setAttribute('stroke','rgba(255,255,255,0.1)');
+    }
+  }
+}
+
+/* ── AGV TRACK (right column) ─────────────────── */
+function renderTrack(){
+  const wrap = document.getElementById('track-wrap');
+  wrap.innerHTML = POS_KEYS.map(p=>{
+    const [l,r] = POSITIONS[p];
+    const active = AGV.pos===p;
+    return `<div class="track-row">
+      <div class="track-dot" style="color:${active?'var(--blue)':'rgba(255,255,255,0.12)'};
+           font-size:${active?16:12}px">${active?'◉':'●'}</div>
+      <div class="track-pos">${p}</div>
+      <div class="track-tbl">Bàn ${l} ↔ ${r}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── AGV STATUS ─────────────────────────────────── */
+function syncAGV(){
+  const {pos,status,s1,s2} = AGV;
+  const dot_c = {idle:'var(--green)',moving:'var(--blue)',inprogess:'var(--blue)',inprogress:'var(--blue)',serving:'var(--amber)',done_task:'var(--amber)'}[status]||'var(--green)';
+  const st_lbl = {idle:'Đang chờ',moving:'Di chuyển',inprogess:'Đang giao',inprogress:'Đang giao',serving:'Đang giao',done_task:'Đã giao xong'}[status]||status;
+  document.getElementById('agv-dot').style.color = dot_c;
+  document.getElementById('agv-lbl').textContent = st_lbl;
+  document.getElementById('agv-pos').textContent = `Vị trí: ${pos}`;
+  document.getElementById('agv-cargo').textContent = `Slot 1: ${s1||'—'}  ·  Slot 2: ${s2||'—'}`;
+  setChip('chip-agv','chip-info',`AGV: ${pos}`);
+  document.getElementById('agv-bar').textContent=
+    `AGV  ·  ${st_lbl}  ·  ${pos}  ·  Slot1: ${s1||'—'}  ·  Slot2: ${s2||'—'}`;
+  const goBtn = document.querySelector('.abtn-go');
+  if(goBtn){
+    goBtn.disabled = status !== 'idle';
+    goBtn.style.opacity = status === 'idle' ? '1' : '.45';
+    goBtn.style.cursor = status === 'idle' ? 'pointer' : 'not-allowed';
+  }
+  moveRobotTo(pos);
+  renderTrack();
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  ACTIONS
+   ╚══════════════════════════════════════════════════════ */
+function selectOrder(tid){
+  if(!ORDERS[tid]||ORDERS[tid].trang_thai==='trong'){
+    addLog(`Bàn ${tid} — không có đơn`,'info'); return;
+  }
+  SEL = tid;
+  TBL_ST[tid] = 'selected';
+  addLog(`Chọn đơn Bàn ${tid}`,'info');
+  syncAll();
+}
+
+function toggleItem(tid, tripIdx, itemIdx, wasDone){
+  const done = !wasDone;
+  if(TRIPS[tid]?.trips?.[tripIdx]?.[itemIdx])
+    TRIPS[tid].trips[tripIdx][itemIdx].done = done;
+  wsTx({cmd:'set_mon_status',table_id:tid,
+        mon_index: tripIdx*2+itemIdx,
+        mon_status: done?3:0}); // 3=MON_DA_GIAO
+  addLog(`Bàn ${tid} · món[${tripIdx}][${itemIdx}] → ${done?'XONG':'bỏ tích'}`,'ok');
+  renderDetail(); renderTableGrid();
+}
+
+function changeSlot(tid, tripIdx, itemIdx, val){
+  const item = TRIPS[tid]?.trips?.[tripIdx]?.[itemIdx];
+  if(!item) return;
+  const slot = parseInt(val);
+  const key = itemKey(tid, tripIdx, itemIdx);
+  clearBasketItem(key);
+  if(slot===1 || slot===2){
+    AGV_BASKET[slot] = {
+      key, table:tid, tripIdx, itemIdx,
+      name:item.ten||`Món #${item.type}`,
+      pos:tablePos(tid),
+      dir:tableDir(tid)
+    };
+  }
+  addLog(`Slot ${slot||'-'} · Bàn ${tid} · ${item.ten||item.type}`,'slot');
+  renderDetail();
+}
+
+function sendAGV(){
+  if(AGV.status!=='idle'){
+    toast('AGV đang bận, chỉ có thể Home khẩn hoặc Emergency Stop');
+    return;
+  }
+  const s1 = AGV_BASKET[1];
+  const s2 = AGV_BASKET[2];
+  if(!s1&&!s2){ toast('Hãy phân SLOT cho ít nhất 1 món!'); return; }
+  const first = s1 || s2;
+  const pos = first.pos;
+  AGV.status='moving'; AGV.pos=pos;
+  AGV.s1=s1?`B${s1.table}: ${s1.name}`:'';
+  AGV.s2=s2?`B${s2.table}: ${s2.name}`:'';
+  LAST_AGV_DISPATCH = [s1,s2].filter(Boolean).map(x=>({...x}));
+  wsTx({cmd:'agv_goto',pos,table:first.table,
+        s1:AGV.s1,s2:AGV.s2,
+        dir:first.dir});
+  syncAGV(); addLog(`AGV → ${pos}  S1:'${AGV.s1}'  S2:'${AGV.s2}'`,'agv');
+}
+
+function finishTrip(){
+  const delivered = [AGV_BASKET[1], AGV_BASKET[2]].filter(Boolean);
+  if(!delivered.length){ toast('Chưa có slot nào đang giao!'); return; }
+  completeDispatch(delivered);
+}
+
+function completeLastDispatch(){
+  if(!LAST_AGV_DISPATCH.length) return;
+  completeDispatch(LAST_AGV_DISPATCH);
+  LAST_AGV_DISPATCH = [];
+  AGV.status = 'idle';
+}
+
+function completeDispatch(delivered){
+  delivered.forEach(x=>{
+      const item = TRIPS[x.table]?.trips?.[x.tripIdx]?.[x.itemIdx];
+      if(item) item.done = true;
+      wsTx({cmd:'set_mon_status',table_id:x.table,
+            mon_index:x.tripIdx*2+x.itemIdx,
+            mon_status:3});
+      const tp = TRIPS[x.table];
+      const cur = tp?.trips?.[tp.trip]||[];
+      if(cur.length && cur.every(i=>i.done)){
+        if(tp.trip+1 < tp.trips.length) tp.trip++;
+        else wsTx({cmd:'set_status',table_id:x.table,status:'chua_thanh_toan'});
+      }
+      addLog(`Đã giao Slot · Bàn ${x.table} · ${x.name}`,'ok');
+    });
+  AGV_BASKET = {1:null,2:null};
+  AGV.status='idle'; AGV.s1=''; AGV.s2='';
+  syncAGV(); syncAll();
+}
+
+function reportDelay(){
+  if(!SEL) return;
+  wsTx({cmd:'set_status',table_id:SEL,status:'dang_nau'});
+  addLog(`Bàn ${SEL} · Báo trễ`,'warn');
+  toast('Đã báo trễ đến khách');
+}
+
+function recallHome(){
+  confirm_('AGV sẽ dừng ngay và quay về bếp. Xác nhận?', ()=>{
+    AGV.status='moving'; AGV.pos='Home'; AGV.s1=''; AGV.s2='';
+    wsTx({cmd:'agv_goto',pos:'Home',table:0});
+    syncAGV(); addLog('AGV → HOME KHẨN CẤP ⚠','danger');
+  }, null, true);
+}
+
+function doEmergency(){
+  confirm_('DỪNG KHẨN CẤP TOÀN HỆ THỐNG?\nAGV dừng ngay lập tức!', ()=>{
+    wsTx({cmd:'agv_estop'});
+    AGV.status='idle'; syncAGV();
+    addLog('🚨 EMERGENCY STOP — HỆ THỐNG DỪNG','danger');
+    toast('🚨 Emergency stop đã gửi!',4000);
+  }, null, true);
+}
+
+function setStatus(tid, st){
+  wsTx({cmd:'set_status',table_id:tid,status:st});
+  if(ORDERS[tid]) ORDERS[tid].trang_thai=st;
+  TBL_ST[tid]=stToTblClass(st);
+  syncAll(); addLog(`Bàn ${tid} → ${st}`,'info');
+}
+
+function confirmPayment(tid){
+  confirm_(`Xác nhận bàn ${tid} đã thanh toán?`, ()=>{
+    wsTx({cmd:'set_status',table_id:tid,status:'thanh_toan'});
+    if(ORDERS[tid]) ORDERS[tid].trang_thai='thanh_toan';
+    TBL_ST[tid]='done';
+    delete ORDERS[tid]; delete TRIPS[tid];
+    if(SEL===tid) SEL=null;
+    syncAll(); addLog(`💳 Bàn ${tid} thanh toán OK`,'ok');
+  }, null, false);
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  MODAL CONFIRM
+   ╚══════════════════════════════════════════════════════ */
+function confirm_(msg, onOk, onCancel, isDanger=false){
+  document.getElementById('modal-title').textContent = isDanger?'⚠ Xác nhận':'Xác nhận';
+  document.getElementById('modal-body').textContent  = msg;
+  const okBtn = document.getElementById('modal-ok');
+  okBtn.className = 'mbtn mbtn-ok' + (isDanger?'':' green');
+  _modalCb = onOk;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function modalClose(){
+  document.getElementById('modal-bg').classList.remove('open');
+  _modalCb=null;
+}
+function modalConfirm(){
+  if(_modalCb) _modalCb();
+  modalClose();
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  LOG
+   ╚══════════════════════════════════════════════════════ */
+const LOG_C={ok:'#22C55E',err:'#EF4444',info:'#B0BDCE',
+             tx:'#3D8EFF',rx:'#06B6D4',new:'#F59E0B',
+             warn:'#F59E0B',slot:'#A855F7',agv:'#3D8EFF',
+             danger:'#EF4444'};
+
+function addLog(msg, type='info'){
+  const ts  = new Date().toLocaleTimeString('vi-VN',{hour12:false});
+  const col = LOG_C[type]||'#B0BDCE';
+  const html= `<p><span style="color:#303D55">[${ts}]</span> `+
+              `<span style="color:${col};font-weight:700">[${type.toUpperCase()}]</span> `+
+              `<span>${msg}</span></p>`;
+  // right panel log
+  const la=document.getElementById('log-area');
+  la.insertAdjacentHTML('beforeend',html);
+  la.scrollTop=la.scrollHeight;
+  // bottom bar
+  const lb=document.getElementById('log-bar');
+  lb.insertAdjacentHTML('beforeend',html);
+  lb.scrollTop=lb.scrollHeight;
+  // Keep max 100 lines
+  if(la.children.length>100) la.removeChild(la.firstChild);
+  if(lb.children.length>100) lb.removeChild(lb.firstChild);
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  TOAST / BEEP / HELPERS
+   ╚══════════════════════════════════════════════════════ */
+let _tt;
+function toast(msg, dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+let _ac;
+function beep(hz=880,ms=200){
+  try{
+    _ac=_ac||new AudioContext();
+    const o=_ac.createOscillator(), g=_ac.createGain();
+    o.connect(g); g.connect(_ac.destination);
+    o.frequency.value=hz;
+    g.gain.setValueAtTime(.25,_ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,_ac.currentTime+ms/1000);
+    o.start(); o.stop(_ac.currentTime+ms/1000);
+  }catch(_){}
+}
+
+function setChip(id, cls, text){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.className='tb-chip '+cls;
+  el.textContent=text;
+}
+
+const fmt = n=>(n||0).toLocaleString('vi-VN');
+function elapsed(ts){
+  const m=Math.floor((Date.now()-ts)/60000);
+  return m<1?'vừa xong':`${m} phút trước`;
+}
+
+/* ╔══════════════════════════════════════════════════════
+   ║  KEYBOARD SHORTCUTS
+   ╚══════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter'&&!e.shiftKey) sendAGV();
+  if(e.key==='F2') finishTrip();
+  if(e.key==='Escape') modalClose();
+});
+
+/* ╔══════════════════════════════════════════════════════
+   ║  INIT
+   ╚══════════════════════════════════════════════════════ */
+initMap();
+renderTrack();
+renderTableGrid();
+renderOrderQueue();
+
+connectWS();
+
+// Poll fallback every 15s
+setInterval(()=>{
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({cmd:'get_all'}));
+},15000);
+
+addLog('Kitchen Controller v3 khởi động','ok');
+addLog(`Kết nối → ${WS_URL}`,'info');
+addLog('Phím tắt: Enter=Gửi AGV  F2=Xong lượt  Esc=Đóng hộp thoại','info');
+</script>
+</body>
+</html>

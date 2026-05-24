@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0D0F18">
+<title>Gọi món</title>
+<style>
+/* ═══════════════════════════════════════════
+   RESET & TOKENS
+═══════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;
+  -webkit-tap-highlight-color:transparent}
+:root{
+  --bg0:#080C14; --bg1:#0F1522; --bg2:#161E2E; --bg3:#1D2638;
+  --bd:rgba(255,255,255,0.08); --bd2:rgba(255,255,255,0.16);
+  --t1:#FFFFFF; --t2:#B8C5DC; --t3:#5A6880; --t4:#2E3850;
+  --blue:#3D8EFF; --blue-d:#1E56C8; --blue-glow:rgba(61,142,255,0.35);
+  --green:#22C55E; --green-d:#15803D;
+  --amber:#F59E0B; --red:#EF4444;
+  --r:13px; --shadow:0 6px 28px rgba(0,0,0,0.55);
+}
+html,body{min-height:100%;background:var(--bg0);color:var(--t1);
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;font-size:16px}
+
+/* ═══════════════════════════════════════════
+   TOPBAR
+═══════════════════════════════════════════ */
+.topbar{position:sticky;top:0;z-index:100;
+  background:var(--bg1);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;gap:10px;padding:11px 16px}
+.tb-icon{font-size:22px}
+.tb-info{flex:1}
+.tb-title{font-size:15px;font-weight:700}
+.tb-table{font-size:12px;color:var(--blue);font-weight:600;margin-top:1px}
+.conn-dot{width:9px;height:9px;border-radius:50%;
+  background:var(--red);flex-shrink:0;transition:background .4s}
+.conn-dot.on{background:var(--green)}
+
+/* ═══════════════════════════════════════════
+   STATUS TRACKER  (hiện sau khi gửi đơn)
+═══════════════════════════════════════════ */
+.tracker{margin:12px 14px 0;background:var(--bg2);
+  border:1px solid var(--bd);border-radius:var(--r);
+  padding:12px 14px;display:none}
+.tracker.show{display:block}
+.tracker-lbl{font-size:10px;font-weight:700;letter-spacing:1.5px;
+  color:var(--t3);margin-bottom:12px}
+.steps{display:flex;align-items:flex-start}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:5px;position:relative}
+.step::after{content:'';position:absolute;top:11px;left:50%;
+  width:100%;height:2px;background:var(--bd2);z-index:0}
+.step:last-child::after{display:none}
+.sdot{width:22px;height:22px;border-radius:50%;
+  border:2px solid var(--bd2);background:var(--bg3);
+  z-index:1;display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;transition:all .4s}
+.sdot.done{background:var(--green);border-color:var(--green);color:#fff}
+.sdot.active{background:var(--blue);border-color:var(--blue);color:#fff;
+  box-shadow:0 0 0 4px var(--blue-glow)}
+.slbl{font-size:10px;color:var(--t3);text-align:center;line-height:1.3}
+.step.done .slbl,.step.active .slbl{color:var(--t2)}
+
+/* ═══════════════════════════════════════════
+   PAYMENT BANNER  (hiện khi DON_DA_GIAO)
+═══════════════════════════════════════════ */
+.pay-banner{margin:12px 14px 0;background:linear-gradient(135deg,#052E16,#0A4020);
+  border:1.5px solid var(--green);border-radius:var(--r);
+  padding:14px 16px;display:none;align-items:center;gap:12px}
+.pay-banner.show{display:flex}
+.pay-info{flex:1}
+.pay-title{font-size:14px;font-weight:700;color:var(--green)}
+.pay-sub{font-size:12px;color:var(--t2);margin-top:2px}
+.pay-btn{padding:10px 20px;background:var(--green);color:#fff;
+  border:none;border-radius:10px;font-size:13px;font-weight:800;
+  cursor:pointer;flex-shrink:0;box-shadow:0 4px 16px rgba(34,197,94,0.4)}
+.pay-btn:active{background:var(--green-d)}
+
+/* PAID screen */
+.paid-screen{display:none;flex-direction:column;align-items:center;
+  justify-content:center;padding:50px 24px;text-align:center;gap:14px;
+  min-height:40vh}
+.paid-screen.show{display:flex}
+.paid-icon{font-size:60px}
+.paid-title{font-size:22px;font-weight:800;color:var(--green)}
+.paid-sub{font-size:14px;color:var(--t2);max-width:260px}
+
+/* ═══════════════════════════════════════════
+   CATEGORY TABS
+═══════════════════════════════════════════ */
+.cats{display:flex;gap:7px;padding:14px 14px 6px;
+  overflow-x:auto;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{flex-shrink:0;padding:7px 18px;border-radius:99px;
+  border:1px solid var(--bd);background:transparent;
+  color:var(--t3);font-size:13px;font-weight:600;cursor:pointer;
+  transition:all .2s}
+.cat.active{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* ═══════════════════════════════════════════
+   MENU SECTION
+═══════════════════════════════════════════ */
+.menu-wrap{padding:0 14px 8px}
+.sec-title{font-size:10px;font-weight:700;letter-spacing:1.5px;
+  color:var(--t3);padding:14px 0 8px;border-bottom:1px solid var(--bd);
+  margin-bottom:2px}
+
+/* Item card */
+.mitem{display:flex;align-items:center;gap:12px;
+  padding:13px 0;border-bottom:1px solid var(--bd)}
+.mitem:last-child{border-bottom:none}
+
+/* Image: thực tế = <img src="/img/imgN.jpg"> */
+.mimg{width:66px;height:66px;border-radius:12px;object-fit:cover;
+  background:var(--bg3);flex-shrink:0;border:1px solid var(--bd)}
+.mimg-fallback{width:66px;height:66px;border-radius:12px;
+  background:var(--bg3);flex-shrink:0;border:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;font-size:28px}
+
+.mbody{flex:1;min-width:0}
+.mname{font-size:14px;font-weight:600;color:var(--t1);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mprice{font-size:13px;font-weight:700;color:var(--blue);margin-top:2px}
+.mcat{font-size:11px;color:var(--t3);margin-top:1px}
+
+/* Qty control */
+.qctrl{display:flex;align-items:center;flex-shrink:0}
+.qbtn{width:32px;height:32px;border-radius:50%;
+  border:1.5px solid var(--bd2);background:transparent;
+  color:var(--t2);font-size:18px;font-weight:300;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;user-select:none}
+.qbtn.add{border-color:var(--blue);color:var(--blue)}
+.qbtn:active{background:var(--bg3);transform:scale(.9)}
+.qnum{width:30px;text-align:center;font-size:15px;font-weight:700}
+
+/* ═══════════════════════════════════════════
+   ORDER BAR  (sticky bottom)
+═══════════════════════════════════════════ */
+.app-wrap{padding-bottom:110px}
+.orderbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;z-index:200;
+  padding:10px 14px 22px;
+  background:linear-gradient(to top,var(--bg0) 75%,transparent)}
+.obtn{width:100%;padding:15px 16px;border-radius:14px;border:none;
+  background:var(--blue);color:#fff;
+  font-size:15px;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 8px 28px var(--blue-glow);transition:all .2s}
+.obtn:active{transform:scale(.98);background:var(--blue-d)}
+.obtn.empty{background:var(--bg2);color:var(--t3);
+  box-shadow:none;cursor:default}
+.obtn-l{display:flex;align-items:center;gap:10px}
+.ocnt{background:rgba(255,255,255,0.22);border-radius:99px;
+  padding:3px 10px;font-size:12px;font-weight:700}
+.ototal{font-size:16px;font-weight:800}
+
+/* ═══════════════════════════════════════════
+   MODAL  (bottom sheet)
+═══════════════════════════════════════════ */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);
+  z-index:300;display:none;align-items:flex-end;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--bg1);border-radius:22px 22px 0 0;
+  width:100%;max-width:480px;padding:18px 18px 36px;
+  max-height:88vh;overflow-y:auto;
+  border-top:1px solid var(--bd2)}
+.mhandle{width:38px;height:4px;border-radius:2px;
+  background:var(--bd2);margin:0 auto 18px}
+.mtitle{font-size:17px;font-weight:800;margin-bottom:3px}
+.msub{font-size:12px;color:var(--t3);margin-bottom:16px}
+.mitems{display:flex;flex-direction:column;gap:9px;margin-bottom:16px}
+
+/* Modal item row */
+.mrow{display:flex;align-items:center;gap:10px;
+  background:var(--bg2);border-radius:11px;padding:11px 13px}
+.mrow-img{width:42px;height:42px;border-radius:8px;
+  object-fit:cover;background:var(--bg3);
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  flex-shrink:0;border:1px solid var(--bd)}
+.mrow-body{flex:1;min-width:0}
+.mrow-name{font-size:13px;font-weight:600}
+.mrow-detail{font-size:11px;color:var(--t3);margin-top:2px}
+.mrow-price{font-size:14px;font-weight:700;color:var(--blue);flex-shrink:0}
+
+.note-ta{width:100%;background:var(--bg2);border:1px solid var(--bd);
+  border-radius:11px;padding:11px;color:var(--t1);font-size:14px;
+  resize:none;outline:none;font-family:inherit;margin-bottom:14px}
+.note-ta:focus{border-color:var(--blue)}
+.mtotal-row{display:flex;justify-content:space-between;align-items:center;
+  padding:13px 0;border-top:1px solid var(--bd);margin-bottom:14px}
+.mtotal-label{font-size:14px;color:var(--t2)}
+.mtotal-val{font-size:20px;font-weight:800;color:var(--green)}
+.mbtns{display:flex;gap:10px}
+.mbtn-cancel{flex:1;padding:13px;border-radius:12px;
+  border:1px solid var(--bd2);background:transparent;
+  color:var(--t2);font-size:14px;font-weight:700;cursor:pointer}
+.mbtn-confirm{flex:2;padding:13px;border-radius:12px;border:none;
+  background:var(--green);color:#fff;font-size:14px;font-weight:800;
+  cursor:pointer;box-shadow:0 5px 18px rgba(34,197,94,0.4)}
+.mbtn-confirm:active{background:var(--green-d)}
+.mbtn-confirm:disabled{background:var(--t4);box-shadow:none;color:var(--t3)}
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+.toast{position:fixed;top:14px;left:50%;
+  transform:translateX(-50%) translateY(-90px);
+  background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;
+  padding:11px 20px;font-size:13px;font-weight:600;color:var(--t1);
+  z-index:500;transition:transform .35s cubic-bezier(.34,1.5,.64,1);
+  white-space:nowrap;box-shadow:var(--shadow);pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+@media(min-width:480px){
+  body{display:flex;justify-content:center}
+  .topbar,.cats,.menu-wrap,.tracker,.pay-banner,
+  .paid-screen{max-width:480px;width:100%}
+  .app-wrap{max-width:480px;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<div class="app-wrap">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-icon">🍜</div>
+    <div class="tb-info">
+      <div class="tb-title">Nhà hàng</div>
+      <div class="tb-table" id="tb-table">Bàn —</div>
+    </div>
+    <div class="conn-dot" id="conn-dot"></div>
+  </div>
+
+  <!-- STATUS TRACKER -->
+  <div class="tracker" id="tracker">
+    <div class="tracker-lbl">TRẠNG THÁI ĐƠN HÀNG</div>
+    <div class="steps">
+      <div class="step" id="s0"><div class="sdot">1</div><div class="slbl">Đã nhận</div></div>
+      <div class="step" id="s1"><div class="sdot">2</div><div class="slbl">Đang nấu</div></div>
+      <div class="step" id="s2"><div class="sdot">3</div><div class="slbl">Sẵn sàng</div></div>
+      <div class="step" id="s3"><div class="sdot">4</div><div class="slbl">Giao đến</div></div>
+      <div class="step" id="s4"><div class="sdot">✓</div><div class="slbl">Xong</div></div>
+    </div>
+  </div>
+
+  <!-- PAYMENT BANNER -->
+  <div class="pay-banner" id="pay-banner">
+    <div class="pay-info">
+      <div class="pay-title">Tất cả món đã được giao ✓</div>
+      <div class="pay-sub" id="pay-sub">Tổng: — ₫</div>
+    </div>
+    <button class="pay-btn" onclick="doPayment()">Thanh toán</button>
+  </div>
+
+  <!-- PAID SUCCESS -->
+  <div class="paid-screen" id="paid-screen">
+    <div class="paid-icon">🎉</div>
+    <div class="paid-title">Đã thanh toán!</div>
+    <div class="paid-sub">Cảm ơn bạn đã đến. Hẹn gặp lại!</div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div class="cats" id="cats"></div>
+
+  <!-- MENU -->
+  <div class="menu-wrap" id="menu-list"></div>
+</div><!-- /app-wrap -->
+
+<!-- ORDER BAR -->
+<div class="orderbar">
+  <button class="obtn empty" id="obtn" onclick="openModal()">
+    <div class="obtn-l">
+      <span class="ocnt" id="ocnt">0 món</span>
+      <span>Xem giỏ hàng</span>
+    </div>
+    <span class="ototal" id="ototal">0 ₫</span>
+  </button>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="outsideClose(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">Xác nhận đơn hàng</div>
+    <div class="msub" id="msub">Bàn —</div>
+    <div class="mitems" id="mitems"></div>
+    <textarea class="note-ta" id="note-ta" rows="2"
+      placeholder="Ghi chú cho bếp (ít cay, không hành…)"></textarea>
+    <div class="mtotal-row">
+      <span class="mtotal-label">Tổng cộng</span>
+      <span class="mtotal-val" id="mtotal">0 ₫</span>
+    </div>
+    <div class="mbtns">
+      <button class="mbtn-cancel" onclick="closeModal()">Sửa</button>
+      <button class="mbtn-confirm" id="mbtn-confirm" onclick="sendOrder()">
+        Gửi đơn →
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   CONFIG  — đọc bàn từ URL path  /1 ../10
+═══════════════════════════════════════════════════ */
+const ESP_IP   = location.hostname;
+const WS_URL   = `ws://${ESP_IP}/ws`;
+const API      = `http://${ESP_IP}`;
+
+// Lấy table_id từ pathname  /3  →  3
+const TABLE_ID = (()=>{
+  const p = parseInt(location.pathname.replace('/',''));
+  return (p>=1 && p<=10) ? p : 1;
+})();
+
+document.getElementById('tb-table').textContent = `Bàn ${TABLE_ID}`;
+document.getElementById('msub').textContent     = `Bàn ${TABLE_ID}`;
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+let MENU    = [];
+let CART    = {};      // {mon_type: qty}
+let ws      = null;
+let ordered = false;
+let paid    = false;
+
+/* ═══════════════════════════════════════════════════
+   EMOJI CATEGORY MAP
+═══════════════════════════════════════════════════ */
+const EMO = {Mon_chinh:"🍜",Trang_miem:"🍮",Nuoc:"🧃"};
+
+/* ═══════════════════════════════════════════════════
+   WEBSOCKET
+═══════════════════════════════════════════════════ */
+function connectWS(){
+  ws = new WebSocket(WS_URL);
+  ws.onopen  = ()=>document.getElementById('conn-dot').classList.add('on');
+  ws.onclose = ()=>{
+    document.getElementById('conn-dot').classList.remove('on');
+    setTimeout(connectWS,3000);
+  };
+  ws.onerror = ()=>ws.close();
+  ws.onmessage = e=>{
+    try{ handleEvent(JSON.parse(e.data)); }catch(_){}
+  };
+}
+
+function handleEvent(d){
+  // Chỉ xử lý event của bàn mình
+  if(d.event==='don_update' && d.table_id===TABLE_ID){
+    updateTracker(d.trang_thai);
+    if(d.trang_thai==='da_giao'){
+      document.getElementById('pay-banner').classList.add('show');
+      document.getElementById('pay-sub').textContent=`Tổng: ${fmt(d.tong_gia)} ₫`;
+      showToast('✓ Tất cả món đã được giao!',4000);
+    }
+    if(d.trang_thai==='thanh_toan'){
+      showPaidScreen();
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   LOAD MENU
+═══════════════════════════════════════════════════ */
+async function loadMenu(){
+  try{
+    const r = await fetch(`${API}/api/menu`);
+    const d = await r.json();
+    MENU = d.menu||[];
+  }catch(_){
+    // offline fallback
+    MENU=[
+      {id:1,ten:"Xủi cảo hấp",         gia:45,loai:"Mon_chinh"},
+      {id:2,ten:"Mì vằn thắn",          gia:42,loai:"Mon_chinh"},
+      {id:3,ten:"Vịt quay Bắc Kinh",    gia:85,loai:"Mon_chinh"},
+      {id:4,ten:"Há cảo tôm",           gia:48,loai:"Mon_chinh"},
+      {id:5,ten:"Cơm chiên Dương Châu", gia:55,loai:"Mon_chinh"},
+      {id:6,ten:"Đậu phụ Tứ Xuyên",     gia:38,loai:"Mon_chinh"},
+      {id:7,ten:"Mì xào hải sản",        gia:65,loai:"Mon_chinh"},
+      {id:8,ten:"Canh chua cá",          gia:40,loai:"Mon_chinh"},
+      {id:9,ten:"Bánh bao nhân đậu",     gia:25,loai:"Trang_miem"},
+      {id:10,ten:"Chè Thái",             gia:30,loai:"Trang_miem"},
+      {id:11,ten:"Trà đào",              gia:28,loai:"Nuoc"},
+      {id:12,ten:"Nước cam ép",          gia:25,loai:"Nuoc"},
+      {id:13,ten:"Trà sữa trân châu",    gia:32,loai:"Nuoc"},
+      {id:14,ten:"Bia 333",              gia:18,loai:"Nuoc"},
+      {id:15,ten:"Nước suối",            gia:10,loai:"Nuoc"},
+      {id:16,ten:"Cà phê sữa đá",        gia:22,loai:"Nuoc"},
+    ];
+  }
+  renderCats(); renderMenu('all');
+}
+
+function renderCats(){
+  const cats=[...new Set(MENU.map(m=>m.loai))];
+  const el=document.getElementById('cats');
+  el.innerHTML=`<button class="cat active" data-c="all">Tất cả</button>`;
+  cats.forEach(c=>el.insertAdjacentHTML('beforeend',
+    `<button class="cat" data-c="${c}">${EMO[c]||'🍽'} ${c}</button>`));
+  el.querySelectorAll('.cat').forEach(b=>{
+    b.onclick=()=>{
+      el.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      renderMenu(b.dataset.c);
+    };
+  });
+}
+
+function renderMenu(filter){
+  const items=filter==='all'?MENU:MENU.filter(m=>m.loai===filter);
+  const byCat={};
+  items.forEach(m=>{(byCat[m.loai]??=[]).push(m);});
+  const wrap=document.getElementById('menu-list');
+  wrap.innerHTML='';
+  for(const[cat,ms] of Object.entries(byCat)){
+    wrap.insertAdjacentHTML('beforeend',
+      `<div class="sec-title">${EMO[cat]||''} ${cat}</div>`);
+    ms.forEach(m=>{
+      const q=CART[m.id]||0;
+      // Ảnh thực: /img/imgN.jpg  — fallback emoji nếu 404
+      wrap.insertAdjacentHTML('beforeend',`
+        <div class="mitem">
+          <img class="mimg" src="/img/img${m.id}.jpg"
+               onerror="this.outerHTML='<div class=mimg-fallback>${EMO[m.loai]||'🍽'}</div>'"
+               alt="${m.ten}">
+          <div class="mbody">
+            <div class="mname">${m.ten}</div>
+            <div class="mprice">${fmt(m.gia)} ₫</div>
+          </div>
+          <div class="qctrl">
+            <button class="qbtn"     onclick="chg(${m.id},-1)">−</button>
+            <div class="qnum" id="q${m.id}">${q||''}</div>
+            <button class="qbtn add" onclick="chg(${m.id},+1)">+</button>
+          </div>
+        </div>`);
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   CART
+═══════════════════════════════════════════════════ */
+function chg(id,d){
+  if(ordered){showToast('Đơn đã gửi rồi!');return;}
+  CART[id]=Math.max(0,(CART[id]||0)+d);
+  if(!CART[id]) delete CART[id];
+  const el=document.getElementById(`q${id}`);
+  if(el) el.textContent=CART[id]||'';
+  updateBar();
+}
+
+function updateBar(){
+  const q=Object.values(CART).reduce((s,v)=>s+v,0);
+  const p=Object.entries(CART).reduce((s,[id,v])=>{
+    const m=MENU.find(x=>x.id==id);
+    return s+(m?m.gia*v:0);
+  },0);
+  document.getElementById('ocnt').textContent=`${q} món`;
+  document.getElementById('ototal').textContent=`${fmt(p)} ₫`;
+  const btn=document.getElementById('obtn');
+  btn.classList.toggle('empty',q===0);
+}
+
+/* ═══════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════ */
+function openModal(){
+  if(!Object.keys(CART).length) return;
+  if(ordered){showToast('Đơn của bạn đã được gửi!');return;}
+  const wrap=document.getElementById('mitems');
+  wrap.innerHTML='';
+  let total=0;
+  Object.entries(CART).forEach(([id,qty])=>{
+    const m=MENU.find(x=>x.id==id);
+    if(!m) return;
+    const sub=m.gia*qty; total+=sub;
+    wrap.insertAdjacentHTML('beforeend',`
+      <div class="mrow">
+        <img class="mrow-img" src="/img/img${m.id}.jpg"
+             onerror="this.outerHTML='<div class=mrow-img>${EMO[m.loai]||'🍽'}</div>'"
+             alt="${m.ten}">
+        <div class="mrow-body">
+          <div class="mrow-name">${m.ten}</div>
+          <div class="mrow-detail">×${qty}  ·  ${fmt(m.gia)} ₫/phần</div>
+        </div>
+        <div class="mrow-price">${fmt(sub)} ₫</div>
+      </div>`);
+  });
+  document.getElementById('mtotal').textContent=`${fmt(total)} ₫`;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+function outsideClose(e){ if(e.target.id==='overlay') closeModal(); }
+
+/* ═══════════════════════════════════════════════════
+   SEND ORDER  →  POST /api/order
+   Body: {table_id, mon_an:[{type,soluong},...]}
+═══════════════════════════════════════════════════ */
+async function sendOrder(){
+  const btn=document.getElementById('mbtn-confirm');
+  btn.textContent='Đang gửi…'; btn.disabled=true;
+
+  const mon_an=Object.entries(CART).map(([id,qty])=>({
+    type:parseInt(id), soluong:qty
+  }));
+  const body={table_id:TABLE_ID, mon_an};
+
+  try{
+    const r=await fetch(`${API}/api/order`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    const d=await r.json();
+    if(d.ok){
+      ordered=true;
+      closeModal();
+      document.getElementById('tracker').classList.add('show');
+      updateTracker('dang_xu_ly');
+      showToast('✓ Đơn hàng đã gửi bếp!',3000);
+      disableAllQty();
+    } else {
+      showToast('❌ Lỗi: '+(d.error||'unknown'));
+      btn.textContent='Gửi đơn →'; btn.disabled=false;
+    }
+  }catch(_){
+    showToast('❌ Không kết nối được máy chủ');
+    btn.textContent='Gửi đơn →'; btn.disabled=false;
+  }
+}
+
+function disableAllQty(){
+  document.querySelectorAll('.qbtn').forEach(b=>b.disabled=true);
+}
+
+/* ═══════════════════════════════════════════════════
+   PAYMENT  →  POST /api/payment
+═══════════════════════════════════════════════════ */
+async function doPayment(){
+  try{
+    const r=await fetch(`${API}/api/payment`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({table_id:TABLE_ID}),
+    });
+    const d=await r.json();
+    if(d.ok) showPaidScreen();
+    else showToast('❌ Lỗi thanh toán');
+  }catch(_){
+    showToast('❌ Không kết nối được');
+  }
+}
+
+function showPaidScreen(){
+  paid=true;
+  document.getElementById('pay-banner').classList.remove('show');
+  document.getElementById('tracker').classList.remove('show');
+  document.getElementById('cats').style.display='none';
+  document.getElementById('menu-list').style.display='none';
+  document.getElementById('orderbar').style.display='none';
+  document.getElementById('paid-screen').classList.add('show');
+}
+
+/* ═══════════════════════════════════════════════════
+   STATUS TRACKER
+═══════════════════════════════════════════════════ */
+// trang_thai → step index:
+// dang_xu_ly=0, dang_nau=1, xong(ready)=2, da_giao=3, thanh_toan=4
+const MAP={dang_xu_ly:0,dang_nau:1,xong:2,da_giao:3,thanh_toan:4};
+function updateTracker(st){
+  const idx=MAP[st]??0;
+  for(let i=0;i<5;i++){
+    const el=document.getElementById(`s${i}`);
+    const dot=el.querySelector('.sdot');
+    el.classList.remove('done','active');
+    if(i<idx){el.classList.add('done');dot.textContent='✓';}
+    if(i===idx) el.classList.add('active');
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════════ */
+const fmt=n=>n.toLocaleString('vi-VN');
+let _tt;
+function showToast(msg,dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+loadMenu();
+connectWS();
+</script>
+</body>
+</html>
