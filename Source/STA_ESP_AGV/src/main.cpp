@@ -25,6 +25,7 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 #include <FS.h>
+#include "HMI.h"
 
 extern const uint8_t data_index_html_start[] asm("_binary_data_index_html_start");
 extern const uint8_t data_index_html_end[] asm("_binary_data_index_html_end");
@@ -38,7 +39,7 @@ extern const uint8_t data_kitchen_html_end[] asm("_binary_data_kitchen_html_end"
 #define WIFI_PASSWORD   "12345678"
 
 
-// Static IP
+// Static IP -> config with IP.
 IPAddress local_IP(192,168,1,102);
 IPAddress gateway(192,168,1,1);
 IPAddress subnet(255,255,255,0);
@@ -484,6 +485,33 @@ void onAGVWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
         // Relay feedback AGV → tất cả client bếp
         JsonDocument doc;
         if (!deserializeJson(doc, raw)) {
+            // Update HMI position if AGV sends "pos"
+            if (doc.containsKey("pos")) {
+                const char* pos_str = doc["pos"];
+                if (strcmp(pos_str, "Home") == 0 || strcmp(pos_str, "home") == 0) {
+                    g_agv_position = AGV_POS_HOME;
+                    Serial.println("[HMI] AGV Position: Home");
+                } else if (strcmp(pos_str, "P1") == 0) {
+                    g_agv_position = AGV_POS_P1;
+                    Serial.println("[HMI] AGV Position: P1");
+                } else if (strcmp(pos_str, "P2") == 0) {
+                    g_agv_position = AGV_POS_P2;
+                    Serial.println("[HMI] AGV Position: P2");
+                } else if (strcmp(pos_str, "P3") == 0) {
+                    g_agv_position = AGV_POS_P3;
+                    Serial.println("[HMI] AGV Position: P3");
+                } else if (strcmp(pos_str, "P4") == 0) {
+                    g_agv_position = AGV_POS_P4;
+                    Serial.println("[HMI] AGV Position: P4");
+                } else if (strcmp(pos_str, "P5") == 0) {
+                    g_agv_position = AGV_POS_P5;
+                    Serial.println("[HMI] AGV Position: P5");
+                } else if (strcmp(pos_str, "moving") == 0) {
+                    g_agv_position = AGV_POS_MOVING;
+                    Serial.println("[HMI] AGV Position: moving");
+                }
+            }
+            
             doc["_relay_from"] = "agv";
             String relay; serializeJson(doc, relay);
             wsKitchen.textAll(relay);
@@ -806,6 +834,27 @@ void setup() {
 void loop() {
     wsKitchen.cleanupClients();
     wsAGV.cleanupClients();
+
+    // Handle HMI commands
+    if (HMI_is_EMG()) {
+        // Send emergency stop to AGV (same as kitchen_controller)
+        JsonDocument doc;
+        doc["cmd"] = "agv_estop";
+        String msg; serializeJson(doc, msg);
+        wsAGV.textAll(msg);
+        Serial.println("[HMI] EMG command -> AGV");
+    }
+    
+    if (HMI_is_HOME()) {
+        // Send return home to AGV (same as kitchen_controller)
+        JsonDocument doc;
+        doc["cmd"] = "agv_goto";
+        doc["pos"] = "Home";
+        doc["table"] = 0;
+        String msg; serializeJson(doc, msg);
+        wsAGV.textAll(msg);
+        Serial.println("[HMI] HOME command -> AGV");
+    }
 
     // WiFi watchdog
     static uint32_t lastWifiCheck = 0;

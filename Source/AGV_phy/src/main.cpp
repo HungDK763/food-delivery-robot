@@ -803,8 +803,8 @@ void IO_Init()
  * hàm thực thi: 
  */
 
-#define space_table_table 500u
-#define Home_possition 0
+#define space_table_table 1500u
+#define Home_possition 0u
 
 #define AGV_WAIT_LOAD_MS       3000UL
 #define AGV_TAKE_TIMEOUT_MS    30000UL
