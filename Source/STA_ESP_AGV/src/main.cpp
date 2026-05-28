@@ -38,6 +38,9 @@ extern const uint8_t data_kitchen_html_end[] asm("_binary_data_kitchen_html_end"
 #define WIFI_SSID       "nha_hang_1977"
 #define WIFI_PASSWORD   "12345678"
 
+// #define WIFI_SSID       "Hao_Lang_Khong_Pass"
+// #define WIFI_PASSWORD   ""
+
 
 // Static IP -> config with IP.
 IPAddress local_IP(192,168,1,102);
@@ -199,6 +202,43 @@ void sendEmbeddedHtml(AsyncWebServerRequest* req, const uint8_t* start, const ui
 
 // Global: 10 đơn hàng (1 bàn 1 đơn)
 static DonHang_Status_t g_don_hang[NUM_TABLES];
+
+// ──────────────────────────────────────────────────────────────────
+//  HMI UART CALLBACKS
+// ──────────────────────────────────────────────────────────────────
+// Callback to send string to HMI (UART2)
+static void hmi_uart_send_string(const char* str) {
+    Serial2.write((const uint8_t*)str, strlen(str));
+}
+
+// Callback to get available bytes in UART2 buffer
+static int hmi_uart_available(void) {
+    return Serial2.available();
+}
+
+// Callback to read one byte from UART2
+static int hmi_uart_read_byte(void) {
+    if (Serial2.available()) {
+        return Serial2.read();
+    }
+    return -1;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  MAP AGV POSITION TO HMI VALUE
+// ──────────────────────────────────────────────────────────────────
+static uint8_t get_hmi_position_value(AGV_Position_t pos) {
+    switch (pos) {
+        case AGV_POS_HOME:    return 5;   // Home
+        case AGV_POS_P1:      return 25;  // B1/B2
+        case AGV_POS_P2:      return 40;  // B3/B4
+        case AGV_POS_P3:      return 55;  // B5/B6
+        case AGV_POS_P4:      return 70;  // B7/B8
+        case AGV_POS_P5:      return 85;  // B9/B10
+        case AGV_POS_MOVING:  return 50;  // Moving (middle position)
+        default:              return 5;
+    }
+}
 
 // ──────────────────────────────────────────────────────────────────
 //  SERVER OBJECTS
@@ -488,27 +528,41 @@ void onAGVWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
             // Update HMI position if AGV sends "pos"
             if (doc.containsKey("pos")) {
                 const char* pos_str = doc["pos"];
+                uint8_t hmi_val = 0;
+                
                 if (strcmp(pos_str, "Home") == 0 || strcmp(pos_str, "home") == 0) {
                     g_agv_position = AGV_POS_HOME;
+                    hmi_val = 5;
                     Serial.println("[HMI] AGV Position: Home");
                 } else if (strcmp(pos_str, "P1") == 0) {
                     g_agv_position = AGV_POS_P1;
+                    hmi_val = 25;
                     Serial.println("[HMI] AGV Position: P1");
                 } else if (strcmp(pos_str, "P2") == 0) {
                     g_agv_position = AGV_POS_P2;
+                    hmi_val = 40;
                     Serial.println("[HMI] AGV Position: P2");
                 } else if (strcmp(pos_str, "P3") == 0) {
                     g_agv_position = AGV_POS_P3;
+                    hmi_val = 55;
                     Serial.println("[HMI] AGV Position: P3");
                 } else if (strcmp(pos_str, "P4") == 0) {
                     g_agv_position = AGV_POS_P4;
+                    hmi_val = 70;
                     Serial.println("[HMI] AGV Position: P4");
                 } else if (strcmp(pos_str, "P5") == 0) {
                     g_agv_position = AGV_POS_P5;
+                    hmi_val = 85;
                     Serial.println("[HMI] AGV Position: P5");
                 } else if (strcmp(pos_str, "moving") == 0) {
                     g_agv_position = AGV_POS_MOVING;
+                    hmi_val = 50;
                     Serial.println("[HMI] AGV Position: moving");
+                }
+                
+                // Send updated position to HMI
+                if (hmi_val > 0) {
+                    HMI_send_position(hmi_val);
                 }
             }
             
@@ -719,6 +773,15 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n\n=== ESP32 Restaurant v2.0 ===");
 
+    // ── HMI Serial2 ──────────────────────────────────────────────
+    // GPIO16 (RX2), GPIO17 (TX2), baud 9600
+    Serial2.begin(9600, SERIAL_8N1, 16, 17);
+    HMI_init(hmi_uart_send_string, hmi_uart_available, hmi_uart_read_byte);
+    delay(100);
+    // Send initial position (Home = 5)
+    HMI_send_position(get_hmi_position_value(AGV_POS_HOME));
+    Serial.println("[HMI] UART2 initialized (9600 baud)");
+
     // Khởi tạo tất cả đơn
     for (int i = 0; i < NUM_TABLES; i++) {
         memset(&g_don_hang[i], 0, sizeof(DonHang_Status_t));
@@ -832,10 +895,13 @@ void setup() {
 //  LOOP
 // ──────────────────────────────────────────────────────────────────
 void loop() {
+    // ── HMI Update (process incoming UART data) ──────────────────
+    HMI_update();
+
     wsKitchen.cleanupClients();
     wsAGV.cleanupClients();
 
-    // Handle HMI commands
+    // ── Handle HMI button commands ────────────────────────────────
     if (HMI_is_EMG()) {
         // Send emergency stop to AGV (same as kitchen_controller)
         JsonDocument doc;
@@ -843,6 +909,7 @@ void loop() {
         String msg; serializeJson(doc, msg);
         wsAGV.textAll(msg);
         Serial.println("[HMI] EMG command -> AGV");
+        HMI_clear_EMG();
     }
     
     if (HMI_is_HOME()) {
@@ -853,10 +920,20 @@ void loop() {
         doc["table"] = 0;
         String msg; serializeJson(doc, msg);
         wsAGV.textAll(msg);
+        g_agv_position = AGV_POS_HOME;
+        HMI_send_position(get_hmi_position_value(AGV_POS_HOME));
         Serial.println("[HMI] HOME command -> AGV");
+        HMI_clear_HOME();
     }
 
-    // WiFi watchdog
+    // ── Periodic HMI AGV position update at 1Hz ────────────────────
+    static uint32_t lastHmiPositionUpdate = 0;
+    if (millis() - lastHmiPositionUpdate >= 1000) {
+        lastHmiPositionUpdate = millis();
+        HMI_send_position(get_hmi_position_value(g_agv_position));
+    }
+
+    // ── WiFi watchdog ────────────────────────────────────────────
     static uint32_t lastWifiCheck = 0;
     if (millis() - lastWifiCheck > 15000) {
         lastWifiCheck = millis();
