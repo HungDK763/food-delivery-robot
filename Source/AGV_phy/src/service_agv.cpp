@@ -52,6 +52,7 @@ typedef struct {
     mess_to_AGV_t mes[2];  // mes[0] = khay 1, mes[1] = khay 2
     uint8_t status_home;   // 1 when kitchen/controller requests Home
     uint8_t new_req;       // 1 when a fresh request was received
+    uint8_t tester_req;    // 1 when kitchen/controller requests tester
 } AGV_podcard_t;
 
 typedef struct {
@@ -187,6 +188,15 @@ void handleWsText(const char* payload) {
         req.new_req = 1;
         agvSetRequest(req);
         Serial.println("[AGV] Request: ESTOP placeholder");
+        return;
+    }
+
+    if (strcmp(cmd, "tester") == 0) {
+        AGV_podcard_t req = {};
+        req.new_req = 1;
+        req.tester_req = 1;
+        agvSetRequest(req);
+        Serial.println("[AGV] Request: TESTER");
         return;
     }
 

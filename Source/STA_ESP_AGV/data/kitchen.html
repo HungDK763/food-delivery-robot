@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -59,6 +59,11 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);
   cursor:pointer;letter-spacing:.3px;
   box-shadow:0 4px 20px var(--red-g)}
 .btn-emg:hover{background:var(--red-d)}
+.btn-test{padding:12px 22px;border:none;border-radius:10px;
+  background:var(--blue);color:#fff;font-size:14px;font-weight:900;
+  cursor:pointer;letter-spacing:.3px;box-shadow:0 4px 20px rgba(61,142,255,.35)}
+.btn-test:hover{filter:brightness(1.08)}
+.btn-test:disabled{opacity:.45;cursor:not-allowed;filter:none}
 .conn-dot{width:9px;height:9px;border-radius:50%;
   background:var(--red);flex-shrink:0;transition:background .4s}
 .conn-dot.on{background:var(--green)}
@@ -325,6 +330,7 @@ html,body{height:100%;background:var(--bg0);color:var(--t1);
     </div>
     <div class="tb-stretch"></div>
     <div class="conn-dot" id="conn-dot"></div>
+    <button class="btn-test" id="btn-tester" onclick="sendTester()">Tester</button>
     <button class="btn-emg" onclick="doEmergency()">⚠  EMERGENCY STOP</button>
   </div>
 
@@ -517,6 +523,8 @@ let AGV_BASKET = {1:null, 2:null}; // slot basket: each slot carries one item fo
 let LAST_AGV_DISPATCH = []; // exact slots sent in the last AGV trip
 const TBL_ST = {};       // table_id → 'empty'|'occupied'|'selected'|'done'
 const AGV = {pos:'Home', status:'idle', s1:'', s2:''};
+let TESTER_RUNNING = false;
+let TESTER_TIMER = null;
 let _modalCb = null;
 
 // init table statuses
@@ -532,11 +540,13 @@ function connectWS(){
     document.getElementById('conn-dot').classList.add('on');
     ws.send(JSON.stringify({cmd:'get_all'}));
     addLog('✓ Kết nối ESP32 WebSocket','ok');
+    syncAGV();
   };
   ws.onclose = ()=>{
     setChip('chip-ws','chip-red','● Offline');
     document.getElementById('conn-dot').classList.remove('on');
     addLog('✗ Mất kết nối — thử lại...','err');
+    syncAGV();
     setTimeout(connectWS, 3000);
   };
   ws.onerror = ()=>ws.close();
@@ -584,6 +594,7 @@ function handleMsg(d){
   if(d._relay_from==='agv' || d.event==='agv_fb'){
     if(d.pos) AGV.pos = d.pos;
     if(d.status) AGV.status = d.status;
+    if(d.status==='idle') finishTester();
     if(d.status==='done_task') completeLastDispatch();
     syncAGV(); addLog(`AGV ← pos=${d.pos||'?'} st=${d.status||'?'}`,'rx');
     return;
@@ -940,6 +951,12 @@ function syncAGV(){
     goBtn.style.opacity = status === 'idle' ? '1' : '.45';
     goBtn.style.cursor = status === 'idle' ? 'pointer' : 'not-allowed';
   }
+  const testerBtn = document.getElementById('btn-tester');
+  if(testerBtn){
+    const online = ws && ws.readyState===1;
+    const canTest = online && status === 'idle' && !TESTER_RUNNING;
+    testerBtn.disabled = !canTest;
+  }
   moveRobotTo(pos);
   renderTrack();
 }
@@ -1061,6 +1078,31 @@ function doEmergency(){
     addLog('🚨 EMERGENCY STOP — HỆ THỐNG DỪNG','danger');
     toast('🚨 Emergency stop đã gửi!',4000);
   }, null, true);
+}
+
+function sendTester(){
+  if(!(ws && ws.readyState===1)){ toast('WebSocket chưa kết nối'); return; }
+  if(AGV.status!=='idle' || TESTER_RUNNING){ toast('AGV đang bận'); return; }
+  TESTER_RUNNING = true;
+  AGV.status = 'inprogess';
+  wsTx({cmd:'tester'});
+  addLog('Tester → AGV','agv');
+  syncAGV();
+  if(TESTER_TIMER) clearTimeout(TESTER_TIMER);
+  TESTER_TIMER = setTimeout(()=>{
+    if(TESTER_RUNNING){
+      addLog('Tester timeout: AGV chưa trả idle','danger');
+      toast('Tester timeout: AGV chưa trả idle',4000);
+      TESTER_RUNNING = false;
+      syncAGV();
+    }
+  }, 30000);
+}
+
+function finishTester(showLog=true){
+  if(TESTER_TIMER){ clearTimeout(TESTER_TIMER); TESTER_TIMER=null; }
+  if(TESTER_RUNNING && showLog) addLog('Tester hoàn tất','ok');
+  TESTER_RUNNING = false;
 }
 
 function setStatus(tid, st){

@@ -132,9 +132,12 @@ typedef struct {
     mess_to_AGV_t mes[2];
     uint8_t status_home;
     uint8_t new_req;
+    uint8_t tester_req;
 } AGV_podcard_t;
 
 bool agvTakeLatestRequest(AGV_podcard_t* out);
+static void AGV_StartTester();
+static void AGV_TesterLoop();
 
 
 
@@ -802,9 +805,12 @@ void IO_Init()
 /*
  * hàm thực thi: 
  */
-
-#define space_table_table 1500u
-#define Home_possition 0u
+/*
+  Chú thích: 
+  Home: TB1  : TB3: TB5 : ..  
+ */
+#define space_table_table 1500u         // H123: tương đương 50cm. 
+#define Home_possition 100u
 
 #define AGV_WAIT_LOAD_MS       3000UL
 #define AGV_TAKE_TIMEOUT_MS    30000UL
@@ -823,7 +829,8 @@ typedef enum {
     AGV_JOB_CLOSE_DELIVER,
     AGV_JOB_DONE_REPORT,
     AGV_JOB_RETURN_HOME,
-    AGV_JOB_ESTOP
+    AGV_JOB_ESTOP,
+    AGV_JOB_TESTER
 } AGV_JobStep_t;
 
 typedef struct {
@@ -962,6 +969,13 @@ static void AGV_CheckNewRequest()
         return;
     }
 
+    if (req.tester_req) {
+        if (g_jobStep == AGV_JOB_IDLE) {
+            AGV_StartTester();
+        }
+        return;
+    }
+
     if (AGV_IsEstopReq(req)) {
         AGV_StopAll();
         g_stepBeforeEstop = g_jobStep;
@@ -989,6 +1003,11 @@ void AGV_Task_Loop()
         if (millis() - g_stepMillis >= AGV_ESTOP_HOLD_MS) {
             g_jobStep = g_stepBeforeEstop;
         }
+        return;
+    }
+
+    if (g_jobStep == AGV_JOB_TESTER) {
+        AGV_TesterLoop();
         return;
     }
 
@@ -1083,12 +1102,141 @@ void AGV_Task_Loop()
 }
 
 /*
+ * AGV test ting module.
+ */
+
+#define AGV_TEST_TABLE_COUNT       5
+#define AGV_TEST_TABLE_WAIT_MS     3000UL
+#define AGV_TEST_HOME_WAIT_MS      5000UL
+
+typedef enum {
+    AGV_TEST_IDLE = 0,
+    AGV_TEST_CLOSE_HOME,
+    AGV_TEST_MOVE_TABLE,
+    AGV_TEST_OPEN_TABLE,
+    AGV_TEST_WAIT_TABLE,
+    AGV_TEST_CLOSE_TABLE,
+    AGV_TEST_WAIT_AFTER_LAST,
+    AGV_TEST_RETURN_HOME,
+    AGV_TEST_DONE, 
+    AGV_TEST_ROTARY,
+    AGV_TEST_ROTARY_Back, 
+} AGV_TestStep_t;
+
+static AGV_TestStep_t g_testStep = AGV_TEST_IDLE;
+static uint8_t g_testTableIndex = 0;
+static uint32_t g_testMillis = 0;
+static const uint8_t g_testTables[AGV_TEST_TABLE_COUNT] = {1, 3, 5, 7, 9};
+
+static long AGV_TestTablePosition()
+{
+    return AGV_TablePosition(g_testTables[g_testTableIndex]);
+}
+
+static void AGV_TestNextWait()
+{
+    g_testMillis = millis();
+}
+
+static void AGV_StartTester()
+{
+    AGV_StopAll();
+    g_testTableIndex = 0;
+    g_testMillis = 0;
+    g_idleSent = 0;
+    g_doneSent = 1;
+    g_testStep = AGV_TEST_CLOSE_HOME;
+    g_jobStep = AGV_JOB_TESTER;
+    sen_rep(AGV_EVENT_FB, AGV_STS_INPROGESS, AGV_POS_HOME);
+}
+
+static void AGV_TesterLoop()
+{
+    switch (g_testStep) {
+        case AGV_TEST_CLOSE_HOME:
+            if (AGV_CloseSlots(0x03)) {
+                g_testStep = AGV_TEST_MOVE_TABLE;
+            }
+            break;
+
+        case AGV_TEST_MOVE_TABLE:
+            if (Go_pos_PID(AGV_TestTablePosition())) {
+                g_testStep = AGV_TEST_ROTARY;
+            }
+            break;
+
+        case AGV_TEST_ROTARY: 
+            if(QUAY_PHAI() == 1){
+                g_testStep = AGV_TEST_OPEN_TABLE;
+            }            
+            //H123. 
+            break; 
+
+        case AGV_TEST_OPEN_TABLE:
+            if (AGV_OpenSlots(0x03)) {
+                AGV_TestNextWait();
+                g_testStep = AGV_TEST_WAIT_TABLE;
+            }
+            break;
+
+        case AGV_TEST_WAIT_TABLE:
+            if (millis() - g_testMillis >= AGV_TEST_TABLE_WAIT_MS) {
+                g_testStep = AGV_TEST_ROTARY_Back;   // chuyển trạng thái quay. 
+            }
+            break;
+
+        case AGV_TEST_ROTARY_Back: 
+            //H123. 
+            if(QUAY_TRAI() == 1){
+                g_testMillis = millis();
+                g_testStep   = AGV_TEST_CLOSE_TABLE;
+            }
+            break; 
+
+        case AGV_TEST_CLOSE_TABLE:
+            if (AGV_CloseSlots(0x03)) {
+                g_testTableIndex++;
+                if (g_testTableIndex >= AGV_TEST_TABLE_COUNT) {
+                    AGV_TestNextWait();
+                    g_testStep = AGV_TEST_WAIT_AFTER_LAST;
+                } else {
+                    g_testStep = AGV_TEST_MOVE_TABLE;
+                }
+            }
+            break;
+
+        case AGV_TEST_WAIT_AFTER_LAST:
+            if (millis() - g_testMillis >= AGV_TEST_HOME_WAIT_MS) {
+                g_testStep = AGV_TEST_RETURN_HOME;
+            }
+            break;
+
+        case AGV_TEST_RETURN_HOME:
+            if (Go_pos_PID(Home_possition) && QUAY_TRAI()) {
+                g_testStep = AGV_TEST_DONE;
+            }
+            break;
+
+        case AGV_TEST_DONE:
+            AGV_StopAll();
+            sen_rep(AGV_EVENT_FB, AGV_STS_IDLE, AGV_POS_HOME);
+            g_idleSent = 1;
+            g_testStep = AGV_TEST_IDLE;
+            g_jobStep = AGV_JOB_IDLE;
+            break;
+
+        default:
+            g_testStep = AGV_TEST_DONE;
+            break;
+    }
+}
+
+
+/*
  * Setup. 
  */
 
 uint8_t flag_init = 1; 
-
-
 void setup()
 {
     Serial.begin(115200);
@@ -1102,7 +1250,6 @@ void setup()
  * loop 
  */
 // #define space_table_table 250u  // khoảng cách giữa 2 bàn. 
-
 
 
 void loop()
@@ -1127,4 +1274,3 @@ void loop()
     // Serial.printf("Vị trí hiệu tại: %ld\n", stt);
     // MonitorAllInputs(); 
 }
-
